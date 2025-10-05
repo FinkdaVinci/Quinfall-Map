@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>The Quinfall – Interaktive Map (Starter)</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <style>
+    html, body { height: 100%; margin: 0; }
+    #map { height: 100%; width: 100%; background: #0a0f14; }
+    .ui { position: absolute; top: 12px; left: 12px; z-index: 1000; display: flex; gap: 8px; flex-wrap: wrap; }
+    .ui .card { background: rgba(20,30,40,.9); color: #e6eef7; padding: 10px 12px; border-radius: 10px; box-shadow: 0 6px 20px rgba(0,0,0,.25); font: 14px/1.2 system-ui, sans-serif; }
+    .ui input, .ui select { background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.15); color: #e6eef7; padding: 6px 8px; border-radius: 8px; outline: none; }
+    .credit { position: absolute; right: 12px; bottom: 10px; z-index: 1000; color: #9fb3c8; font: 12px/1.2 system-ui, sans-serif; background: rgba(20,30,40,.75); padding: 6px 10px; border-radius: 8px; }
+    .legend { display:flex; gap:8px; flex-wrap: wrap; }
+    .legend span { display:inline-flex; align-items:center; gap:6px; }
+    .dot { width:10px; height:10px; border-radius: 999px; display:inline-block; }
+    .poi-popup { font: 13px/1.3 system-ui, sans-serif; }
+    .poi-popup h4 { margin: 0 0 4px; font-size: 14px; }
+    .poi-popup p { margin: 0; opacity: .9; }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <div class="ui">
+    <div class="card">
+      <div style="display:flex; gap:8px; align-items:center;">
+        <input id="search" type="text" placeholder="Suche POIs…" />
+        <select id="filter">
+          <option value="all">Alle Kategorien</option>
+          <option value="town">Städte</option>
+          <option value="dungeon">Dungeons</option>
+          <option value="resource">Rohstoffe</option>
+          <option value="quest">Quests</option>
+        </select>
+      </div>
+      <div class="legend" style="margin-top:6px;">
+        <span><i class="dot" style="background:#ff6b6b"></i> Städte</span>
+        <span><i class="dot" style="background:#ffd93d"></i> Dungeons</span>
+        <span><i class="dot" style="background:#6bcf9b"></i> Rohstoffe</span>
+        <span><i class="dot" style="background:#74c0fc"></i> Quests</span>
+      </div>
+    </div>
+    <div class="card" id="coord">x: –, y: –</div>
+  </div>
+  <div class="credit">The Quinfall – Fan-Map • Leaflet Starter</div>
+
+  <script>
+    // Bildgröße deiner Karte in Pixeln:
+    const IMAGE_WIDTH  = 6000;    // <- anpassen!
+    const IMAGE_HEIGHT = 4000;    // <- anpassen!
+
+    const imageBounds = [[0, 0], [IMAGE_HEIGHT, IMAGE_WIDTH]];
+    const map = L.map('map', { crs: L.CRS.Simple, minZoom: 0, maxZoom: 5, zoomControl: true });
+    map.fitBounds(imageBounds);
+    const center = L.point(IMAGE_WIDTH/2, IMAGE_HEIGHT/2);
+    map.setView([center.y, center.x], 1);
+
+    // Single-Image-Overlay (map.png muss im Repo liegen)
+    const img = L.imageOverlay('./map.png', imageBounds, { opacity: 1, interactive: false }).addTo(map);
+
+    // Marker/POIs
+    let POIS = [];
+    const icon = (color) => L.divIcon({ className: 'poi', html: `<span style="display:inline-block;width:12px;height:12px;border-radius:999px;background:${color};box-shadow:0 0 0 2px rgba(0,0,0,.35)"></span>`, iconSize: [12,12], iconAnchor: [6,6] });
+    const ICONS = { town: icon('#ff6b6b'), dungeon: icon('#ffd93d'), resource: icon('#6bcf9b'), quest: icon('#74c0fc') };
+    const layers = { town: L.layerGroup().addTo(map), dungeon: L.layerGroup().addTo(map), resource: L.layerGroup().addTo(map), quest: L.layerGroup().addTo(map) };
+    const pxToLatLng = (x, y) => L.latLng(y, x);
+
+    function renderPOIs(list){
+      Object.values(layers).forEach(g=>g.clearLayers());
+      list.forEach(poi => {
+        const m = L.marker(pxToLatLng(poi.x, poi.y), { icon: ICONS[poi.type] || ICONS.quest });
+        const html = `<div class="poi-popup"><h4>${poi.name}</h4><p>${poi.note||''}</p><p style="opacity:.7;margin-top:4px;">x:${poi.x} y:${poi.y} • ${poi.type}</p></div>`;
+        m.bindPopup(html, {autoPan: true, autoClose: true});
+        layers[poi.type]?.addLayer(m);
+      });
+    }
+
+    async function loadPOIs(){
+      try{
+        const res = await fetch('./pois.json', {cache:'no-cache'});
+        POIS = await res.json();
+      }catch(e){
+        // Fallback-Demo
+        POIS = [{ id: 1, name: 'Demo-Ort', x: IMAGE_WIDTH/2, y: IMAGE_HEIGHT/2, type: 'town', note: 'Ersetze pois.json!' }];
+      }
+      renderPOIs(POIS);
+    }
+    loadPOIs();
+
+    // Suche & Filter
+    const $search = document.getElementById('search');
+    const $filter = document.getElementById('filter');
+    function applyFilter(){
+      const q = ($search.value||'').toLowerCase().trim();
+      const f = $filter.value;
+      const filtered = POIS.filter(p => (f==='all' || p.type===f) && (p.name.toLowerCase().includes(q) || (p.note||'').toLowerCase().includes(q)) );
+      renderPOIs(filtered);
+    }
+    $search.addEventListener('input', applyFilter);
+    $filter.addEventListener('change', applyFilter);
+
+    // Koordinatenanzeige
+    const $coord = document.getElementById('coord');
+    map.on('mousemove', (e) => {
+      const x = Math.round(e.latlng.lng);
+      const y = Math.round(e.latlng.lat);
+      $coord.textContent = `x: ${x} , y: ${y}`;
+    });
+  </script>
+</body>
+</html>
