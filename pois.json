@@ -1,0 +1,5 @@
+[
+  { "id": 1, "name": "Hafenstadt Rethmar", "x": 3200, "y": 2100, "type": "town", "note": "Händler, Schnellreise" },
+  { "id": 2, "name": "Blausteinmine",     "x": 4500, "y": 3000, "type": "resource", "note": "Erz-Vorkommen" },
+  { "id": 3, "name": "Schattenkrypta",    "x": 1500, "y": 1100, "type": "dungeon",  "note": "Empf. Stufe 25+" }
+]
